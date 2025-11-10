@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Sistemas</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos para el scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748; /* gris oscuro-azulado */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gris un poco más claro */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gris claro al pasar el mouse */
+        }
+
+        /* Transición suave para el menú */
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        /* Overlay para cerrar el menú al hacer clic fuera */
+        #sidebar-overlay {
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-200" style="font-family: 'Inter', sans-serif;">
+
+    <!-- Overlay para cerrar el menú -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden" onclick="toggleMenu()"></div>
+
+    <!-- Barra de Navegación Superior -->
+    <nav class="bg-white text-gray-800 p-4 flex justify-between items-center shadow-md fixed top-0 left-0 w-full z-20">
+        <button id="menu-btn" onclick="toggleMenu()" class="text-2xl p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
+            &#9776; <!-- Icono de Hamburguesa -->
+        </button>
+        <h1 id="app-title" class="text-xl font-bold text-gray-700">Portal de Sistemas</h1>
+        <div class="w-10"></div> <!-- Espaciador para centrar el título -->
+    </nav>
+
+    <!-- Sidebar (Menú Desplegable) -->
+    <aside id="sidebar" class="w-72 bg-gray-800 text-white flex flex-col p-4 fixed top-0 left-0 h-full z-40 transform -translate-x-full shadow-lg">
+
+        <!-- Encabezado del Menú y Botón de Cerrar -->
+        <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+            <h2 class="text-2xl font-bold">Sistemas</h2>
+            <button onclick="toggleMenu()" class="text-2xl p-2 text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <!-- Lista de Sistemas -->
+        <nav class="flex-grow overflow-y-auto">
+            <ul>
+                <!-- Enlaces actualizados a los nombres de archivo que subiste -->
+                <li><button data-src="Sistema_de_inventario.html" data-title="Inventario General" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Sistema de Inventario (General)</button></li>
+                <li><button data-src="Inventario_Kcc.html" data-title="Inventario KCC" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Inventario KCC</button></li>
+                <li><button data-src="Inventario_TMK.html" data-title="Inventario TMK" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Inventario TMK</button></li>
+                <li><button data-src="Salida_de_Camiones.html" data-title="Salida de Camiones" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Salida de Camiones</button></li>
+                <li><button data-src="Inspecciones_Moviles.html" data-title="Inspección de Móviles" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Inspección de Móviles</button></li>
+                <li><button data-src="Carga_de_Metros_Cubicos.html" data-title="Carga de M3" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Carga de Metros Cúbicos</button></li>
+                <li><button data-src="Ordenar_snc_biggie.html" data-title="SNC Biggie" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">Ordenar SNC Biggie</button></li>
+                <!-- 
+                    ¡OJO! Este archivo "Snc_Pendientes.HTML" tiene la extensión en MAYÚSCULAS.
+                    Esto puede fallar en GitHub. Si falla, renómbralo a "Snc_Pendientes.html" (minúsculas)
+                    y cambia el data-src de abajo para que coincida.
+                -->
+                <li><button data-src="Snc_Pendientes.HTML" data-title="SNC Pendientes" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:bg-blue-600 focus:outline-none">SNC Pendientes</button></li>
+            </ul>
+        </nav>
+
+        <footer class="mt-4 border-t border-gray-700 pt-4">
+            <p class="text-sm text-gray-500 text-center">&copy; 2024 - Rodrigo Cabrera</p>
+        </footer>
+    </aside>
+
+    <!-- Contenedor Principal del Iframe -->
+    <main class="pt-16 h-screen"> <!-- pt-16 para dejar espacio a la barra de nav superior -->
+        <iframe id="content-frame" class="w-full h-full border-0" src=""></iframe>
+    </main>
+
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const contentFrame = document.getElementById('content-frame');
+        const appTitle = document.getElementById('app-title');
+        const menuItems = document.querySelectorAll('.menu-item');
+        let currentItem = null; // Para guardar el ítem activo
+
+        // Función para abrir/cerrar el menú
+        function toggleMenu() {
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        // Función para cargar contenido
+        function loadContent(src, title, buttonEl) {
+            if (src) {
+                // Decodificar la URL para manejar espacios y caracteres especiales
+                // El navegador volverá a codificarlo al hacer la solicitud
+                try {
+                    contentFrame.src = decodeURIComponent(src);
+                } catch (e) {
+                    console.error("Error al decodificar la URL:", e);
+                    contentFrame.src = src; // Intentar cargarlo de todos modos
+                }
+                
+                appTitle.textContent = title;
+
+                // Resalta el ítem activo
+                if (currentItem) {
+                    currentItem.classList.remove('bg-blue-600');
+                }
+                buttonEl.classList.add('bg-blue-600');
+                currentItem = buttonEl;
+
+                // Cierra el menú en móviles (o siempre)
+                toggleMenu();
+            }
+        }
+
+        // Asignar evento a cada ítem del menú
+        menuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const src = item.getAttribute('data-src');
+                const title = item.getAttribute('data-title');
+                loadContent(src, title, item);
+            });
+        });
+
+        // Cargar el primer sistema por defecto
+        document.addEventListener('DOMContentLoaded', () => {
+            const firstItem = menuItems[0];
+            if (firstItem) {
+                const src = firstItem.getAttribute('data-src');
+                const title = firstItem.getAttribute('data-title');
+                appTitle.textContent = "Portal de Sistemas";
+            }
+        });
+    </script>
+</body>
+</html>
