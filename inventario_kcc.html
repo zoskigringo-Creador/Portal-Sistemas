@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sistema de Inventario KCC</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --color-primario: #007bff; --color-secundario: #6c757d; --color-fondo: #f8f9fa;
+            --color-superficie: #ffffff; --color-texto: #212529; --color-borde: #dee2e6;
+            --color-exito: #28a745; --color-peligro: #dc3545; --color-neutro: #6c757d;
+        }
+        body { font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background-color: var(--color-fondo); color: var(--color-texto); margin: 0; padding: 0; }
+        .app-container { padding: 20px; }
+        .contenedor { max-width: 1300px; margin: 20px auto; background-color: var(--color-superficie); padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h1 { color: var(--color-primario); text-align: center; margin-bottom: 25px; }
+        .panel-control { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid var(--color-borde); align-items: end; }
+        .control-grupo { display: flex; flex-direction: column; }
+        .control-grupo label { font-weight: 600; margin-bottom: 8px; font-size: 0.9em; }
+        .control-grupo input[type="file"], .control-grupo select, .control-grupo input[type="text"], .control-grupo input[type="date"], .control-grupo input[type="password"] { width: 100%; padding: 10px; border: 1px solid var(--color-borde); border-radius: 5px; box-sizing: border-box; background-color: #fff; }
+        #nombre-archivo { margin-top: 5px; font-size: 0.8em; font-style: italic; color: var(--color-neutro); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .area-tabla-responsive { overflow-x: auto; }
+        table { width: 100%; min-width: 1000px; border-collapse: collapse; margin-top: 25px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--color-borde); }
+        thead tr { background-color: #e9ecef; }
+        th { font-weight: 700; }
+        #th-seleccion { display: flex; align-items: center; gap: 10px; }
+        tbody tr:not(.fila-historial):hover { background-color: #f1f3f5; }
+        .fila-producto.historial-abierto { background-color: #e6f7ff !important; }
+        .fila-historial { display: none; }
+        .celda-historial { background-color: #fafafa !important; padding: 15px; }
+        .celda-historial ul { padding-left: 20px; margin: 0; }
+        .celda-historial li { color: #555; }
+        .panel-acciones { display: flex; justify-content: flex-end; align-items: center; margin-top: 25px; }
+        button { padding: 10px 20px; border: none; border-radius: 5px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+        .btn-primario { background-color: var(--color-primario); color: white; }
+        .btn-secundario { background-color: var(--color-secundario); color: white; }
+        .btn-terciario { background-color: var(--color-peligro); color: white; }
+        .btn-exito { background-color: var(--color-exito); color: white; }
+        .btn-eliminar { background-color: #dc3545; color: white; padding: 8px 12px; font-size: 0.8em; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-contenido { background-color: #fefefe; margin: 10% auto; padding: 30px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-borde); padding-bottom: 15px; margin-bottom: 20px; }
+        .modal-header h2 { margin: 0; }
+        .modal-header .close-button { font-size: 1.5rem; font-weight: bold; cursor: pointer; border: none; background: none; }
+        .modal-body { display: flex; flex-direction: column; gap: 15px; }
+        .modal-body button { width: 100%; }
+        .mapeo-fila { display: grid; grid-template-columns: 180px 1fr; gap: 15px; align-items: center; margin-bottom: 15px; }
+        footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: var(--color-neutro); }
+        .acciones-tabla { display: flex; align-items: center; gap: 10px; }
+        .panel-agregar-producto { position: relative; display: flex; gap: 10px; }
+        .panel-agregar-producto input { flex-grow: 1; }
+        .sugerencias-lista { position: absolute; top: 100%; left: 0; right: 0; background-color: white; border: 1px solid var(--color-borde); border-top: none; z-index: 50; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .sugerencias-lista div { padding: 10px; cursor: pointer; }
+        .sugerencias-lista div:hover { background-color: #f1f3f5; }
+        .login-container { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100vh; text-align: center; }
+        .login-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 40px; background-color: var(--color-superficie); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; width: 90%; }
+        .welcome-message { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: var(--color-primario); color: white; padding: 30px 50px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); font-size: 1.5em; text-align: center; opacity: 0; z-index: 1001; animation: fadeIn 0.5s ease-in forwards, fadeOut 0.5s ease-out 2.5s forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -40px); } to { opacity: 1; transform: translate(-50%, -50%); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        @media (max-width: 768px) {
+            .app-container { padding: 10px; } .contenedor { padding: 15px; }
+            .panel-control { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+            .panel-acciones { flex-direction: column; align-items: stretch; }
+            h1 { font-size: 1.5em; } th, td { padding: 8px 10px; font-size: 0.9em; }
+            .mapeo-fila { grid-template-columns: 1fr; } .modal-contenido { margin: 5% auto; width: 90%; }
+            .panel-agregar-producto { flex-direction: column; } .welcome-message { font-size: 1.2em; padding: 20px 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen" class="login-container">
+        <div class="login-box">
+            <h1>Bienvenido al Sistema de Inventario</h1>
+            <p>Por favor, ingrese su codigo de auditor para continuar.</p>
+            <div class="control-grupo" style="margin-top: 20px;">
+                <label for="auditor-code">Codigo de Auditor</label>
+                <input type="password" id="auditor-code" placeholder="Ingrese su codigo...">
+            </div>
+            <button id="btn-login" class="btn-primario" style="width: 100%; margin-top: 20px;">Ingresar</button>
+            <p id="login-error" style="color: var(--color-peligro); margin-top: 10px; display: none;">Codigo incorrecto. Intente de nuevo.</p>
+        </div>
+    </div>
+
+    <div id="welcome-message" class="welcome-message" style="display: none;"></div>
+    
+    <div class="app-container">
+        <div id="main-app" class="contenedor" style="display: none;">
+            <h1>Sistema de Inventario</h1>
+            <div class="panel-control">
+                <div class="control-grupo"><label for="archivo-input">Cargar Base de Datos</label><input type="file" id="archivo-input" accept=".xlsx, .xls" style="padding: 5px;"><span id="nombre-archivo"></span></div>
+                <div class="control-grupo"><label for="linea-select">Seleccionar Linea</label><select id="linea-select" disabled><option>Cargue un archivo</option></select></div>
+                <div class="control-grupo"><label for="categoria-select">Seleccionar Categoria</label><select id="categoria-select" disabled><option>Seleccione linea</option></select></div>
+                <div class="control-grupo"><label for="marca-select">Seleccionar Marca</label><select id="marca-select" disabled><option>Seleccione categoria</option></select></div>
+                <div class="control-grupo"><label for="fecha-inventario">Fecha del Inventario</label><input type="date" id="fecha-inventario"></div>
+                <div class="control-grupo"><label for="responsable-input">Responsable</label><input type="text" id="responsable-input" placeholder="Nombre y Apellido"></div>
+                <div class="control-grupo"><label for="auditor-input">Auditor</label><input type="text" id="auditor-input" readonly></div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px;">
+                <div class="control-grupo" style="flex-grow: 1;">
+                    <label for="filtro-busqueda">Buscar Producto en la lista</label>
+                    <input type="text" id="filtro-busqueda" placeholder="Buscar por descripcion o codigo de barra..." disabled>
+                </div>
+                <button id="btn-toggle-agregar" class="btn-secundario" disabled>+ Agregar</button>
+            </div>
+            
+            <div id="panel-agregar-container" style="display: none; margin-bottom: 20px;">
+                <div class="control-grupo">
+                    <label for="input-agregar-producto">Agregar producto desde la Base de Datos</label>
+                    <div class="panel-agregar-producto">
+                        <input type="text" id="input-agregar-producto" placeholder="Ingrese el codigo de barra o codigo de producto..." disabled>
+                        <div id="sugerencias" class="sugerencias-lista" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="area-tabla" class="area-tabla-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 20px;"><div id="th-seleccion"><input type="checkbox" id="seleccionar-todos"><button id="btn-eliminar-seleccionados" class="btn-eliminar" style="display: none;">Eliminar</button></div></th>
+                            <th>Cod. Producto</th><th>Cod. Barras</th><th>Descripcion</th><th>Stock Sistema</th>
+                            <th style="width: 180px;">Anadir/Restar Cantidad</th><th style="width: 120px;">Conteo Total</th><th style="width: 120px;">Diferencia</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-inventario"></tbody>
+                </table>
+            </div>
+            
+            <div class="panel-acciones">
+                <button id="btn-finalizar" class="btn-primario">Finalizar Inventario</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="modal-mapeo" class="modal">
+         <div class="modal-contenido">
+            <h2>Asignar Columnas del Archivo</h2>
+            <p>Por favor, indica que columna de tu archivo Excel corresponde a cada campo.</p>
+            <div class="mapeo-fila"><label for="map-codigo">Campo "Codigo Mercaderia":</label><select id="map-codigo"></select></div>
+            <div class="mapeo-fila"><label for="map-descripcion">Campo "Descripcion":</label><select id="map-descripcion"></select></div>
+            <div class="mapeo-fila"><label for="map-barcode">Campo "Codigo de Barra":</label><select id="map-barcode"></select></div>
+            <div class="mapeo-fila"><label for="map-stock">Campo "Stock":</label><select id="map-stock"></select></div>
+            <div class="mapeo-fila"><label for="map-linea">Campo "Linea":</label><select id="map-linea"></select></div>
+            <div class="mapeo-fila"><label for="map-categoria">Campo "Categoria":</label><select id="map-categoria"></select></div>
+            <div class="mapeo-fila"><label for="map-marca">Campo "Marca":</label><select id="map-marca"></select></div>
+            <div class="panel-acciones" style="justify-content: flex-end;"><button id="btn-confirmar-mapeo" class="btn-primario">Confirmar y Cargar Datos</button></div>
+        </div>
+    </div>
+
+    <div id="modal-finalizar" class="modal">
+        <div class="modal-contenido">
+            <div class="modal-header">
+                <h2>Finalizar y Exportar</h2>
+                <button class="close-button" id="btn-cerrar-modal-finalizar">&times;</button>
+            </div>
+            <div class="modal-body">
+                <button id="btn-export-excel" class="btn-exito">Exportar a Excel</button>
+                <button id="btn-export-pdf" class="btn-terciario">Exportar a PDF</button>
+                <button id="btn-reiniciar" class="btn-secundario">Reiniciar Sistema</button>
+            </div>
+        </div>
+    </div>
+
+    <footer><p id="timestamp"></p></footer>
+
+    <script>
+    // ================================================================================= //
+    // ========= COMIENZO DEL CÓDIGO JAVASCRIPT: SISTEMA DE INVENTARIO KCC ========= //
+    // ================================================================================= //
+
+    // ---------------------------------------------------------------------------------
+    // --- 1. VARIABLES GLOBALES Y DE ESTADO ---
+    // ---------------------------------------------------------------------------------
+
+        let baseDeDatos = [];           
+        let productosInventario = [];   
+        let inventarioPorLinea = {};    
+
+        let mapeoColumnas = {};         
+        let lineaActual = '';           
+        let categoriaActual = '';       
+        let marcaActual = '';           
+
+        let sistemaInicializado = false;
+        let lastTouchY = 0;             
+
+        const VALOR_TODAS_LAS_LINEAS = '__TODAS__'; 
+
+        const auditores = {
+            '1': { nombre: 'Fabio Vera', mensaje: 'Bienvenido Fabio' }, '2': { nombre: 'Javier Insfran', mensaje: 'Bienvenido Javier' }, 
+            '3': { nombre: 'David Baez', mensaje: 'Bienvenido David' }, '4': { nombre: 'Brian Quintana', mensaje: 'Bienvenido Brian' }, 
+            '5': { nombre: 'Rodrigo Cabrera', mensaje: 'Bienvenido Rodrigo' }, '6': { nombre: 'Marcelo Diaz', mensaje: 'Bienvenido Marcelo' }
+        };
+
+        const elementos = {
+            loginScreen: document.getElementById('login-screen'), auditorCodeInput: document.getElementById('auditor-code'),
+            btnLogin: document.getElementById('btn-login'), loginError: document.getElementById('login-error'),
+            welcomeMessage: document.getElementById('welcome-message'), mainApp: document.getElementById('main-app'),
+            archivoInput: document.getElementById('archivo-input'), nombreArchivoSpan: document.getElementById('nombre-archivo'),
+            lineaSelect: document.getElementById('linea-select'), 
+            categoriaSelect: document.getElementById('categoria-select'),
+            marcaSelect: document.getElementById('marca-select'),
+            fechaInput: document.getElementById('fecha-inventario'),
+            responsableInput: document.getElementById('responsable-input'), auditorInput: document.getElementById('auditor-input'),
+            tablaInventarioBody: document.getElementById('tabla-inventario'), modalMapeo: document.getElementById('modal-mapeo'),
+            btnConfirmarMapeo: document.getElementById('btn-confirmar-mapeo'), timestampFooter: document.getElementById('timestamp'),
+            btnExportExcel: document.getElementById('btn-export-excel'), btnExportPdf: document.getElementById('btn-export-pdf'),
+            btnReiniciar: document.getElementById('btn-reiniciar'), filtroBusqueda: document.getElementById('filtro-busqueda'),
+            inputAgregarProducto: document.getElementById('input-agregar-producto'), sugerencias: document.getElementById('sugerencias'),
+            seleccionarTodos: document.getElementById('seleccionar-todos'), btnEliminarSeleccionados: document.getElementById('btn-eliminar-seleccionados'),
+            btnToggleAgregar: document.getElementById('btn-toggle-agregar'), btnFinalizar: document.getElementById('btn-finalizar'),
+            modalFinalizar: document.getElementById('modal-finalizar'), btnCerrarModalFinalizar: document.getElementById('btn-cerrar-modal-finalizar')
+        };
+        
+    // ---------------------------------------------------------------------------------
+    // --- 2. CONFIGURACIÓN INICIAL Y EVENTOS GLOBALES ---
+    // ---------------------------------------------------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const hoy = new Date();
+            elementos.fechaInput.value = hoy.toISOString().split('T')[0];
+            
+            setInterval(() => {
+                const ahora = new Date();
+                elementos.timestampFooter.textContent = `Hora actual: ${ahora.toLocaleDateString('es-PY')} ${ahora.toLocaleTimeString('es-PY')}`;
+            }, 1000);
+
+            elementos.loginScreen.style.display = 'block';
+            
+            document.body.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) { lastTouchY = e.touches[0].clientY; }
+            }, { passive: true });
+
+            document.body.addEventListener('touchmove', (e) => {
+                const currentTouchY = e.touches[0].clientY;
+                if (window.scrollY === 0 && currentTouchY > lastTouchY) { e.preventDefault(); }
+            }, { passive: false });
+
+            window.onbeforeunload = function() {
+                if (sistemaInicializado) { return "¿Estas seguro de que quieres salir? Se perderán los datos y conteos no guardados."; }
+            };
+        });
+
+    // ---------------------------------------------------------------------------------
+    // --- 3. MANEJADORES DE EVENTOS PRINCIPALES ---
+    // ---------------------------------------------------------------------------------
+
+        elementos.btnLogin.addEventListener('click', manejarLogin);
+        elementos.auditorCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') manejarLogin(); });
+        elementos.archivoInput.addEventListener('change', manejarCargaArchivo);
+        elementos.btnConfirmarMapeo.addEventListener('click', confirmarMapeoYProcesar);
+        elementos.lineaSelect.addEventListener('change', manejarCambioDeLinea);
+        elementos.categoriaSelect.addEventListener('change', manejarCambioDeCategoria);
+        elementos.marcaSelect.addEventListener('change', (e) => {
+            marcaActual = e.target.value;
+            renderizarTabla();
+        });
+        elementos.filtroBusqueda.addEventListener('input', renderizarTabla);
+        elementos.inputAgregarProducto.addEventListener('input', mostrarSugerencias);
+        elementos.inputAgregarProducto.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const primeraSugerencia = elementos.sugerencias.querySelector('div');
+                if (primeraSugerencia) { agregarProductoPorSugerencia(primeraSugerencia.dataset.id); }
+            }
+        });
+        elementos.seleccionarTodos.addEventListener('change', () => {
+            const checkboxes = elementos.tablaInventarioBody.querySelectorAll('.checkbox-producto');
+            checkboxes.forEach(checkbox => checkbox.checked = elementos.seleccionarTodos.checked);
+            actualizarEstadoBotonEliminar();
+        });
+        elementos.btnEliminarSeleccionados.addEventListener('click', eliminarSeleccionados);
+        elementos.btnToggleAgregar.addEventListener('click', () => {
+            const panel = document.getElementById('panel-agregar-container');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+        elementos.btnFinalizar.addEventListener('click', () => { elementos.modalFinalizar.style.display = 'block'; });
+        elementos.btnCerrarModalFinalizar.addEventListener('click', () => { elementos.modalFinalizar.style.display = 'none'; });
+        elementos.btnExportExcel.addEventListener('click', exportarAExcel);
+        elementos.btnExportPdf.addEventListener('click', exportarAPDF);
+        elementos.btnReiniciar.addEventListener('click', reiniciarSistema);
+        
+    // ---------------------------------------------------------------------------------
+    // --- 4. LÓGICA DE LOGIN Y CARGA DE DATOS ---
+    // ---------------------------------------------------------------------------------
+
+        function manejarLogin() {
+            const codigoIngresado = elementos.auditorCodeInput.value.trim();
+            const auditor = auditores[codigoIngresado];
+            if (auditor) {
+                elementos.auditorInput.value = auditor.nombre;
+                elementos.loginScreen.style.display = 'none';
+                elementos.welcomeMessage.textContent = auditor.mensaje;
+                elementos.welcomeMessage.style.display = 'block';
+                setTimeout(() => {
+                    elementos.welcomeMessage.style.display = 'none';
+                    elementos.mainApp.style.display = 'block';
+                    sistemaInicializado = true;
+                }, 3000);
+                elementos.loginError.style.display = 'none';
+            } else {
+                elementos.loginError.style.display = 'block';
+            }
+        }
+
+        function manejarCargaArchivo(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            elementos.nombreArchivoSpan.textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
+                const selects = elementos.modalMapeo.querySelectorAll('select');
+                selects.forEach(select => {
+                    select.innerHTML = '<option value="">-- No usar esta columna --</option>';
+                    headers.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = header;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+                });
+                elementos.modalMapeo.style.display = 'block';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function confirmarMapeoYProcesar() {
+            mapeoColumnas = {
+                codigo: document.getElementById('map-codigo').value, barcode: document.getElementById('map-barcode').value,
+                descripcion: document.getElementById('map-descripcion').value, stock: document.getElementById('map-stock').value,
+                linea: document.getElementById('map-linea').value, categoria: document.getElementById('map-categoria').value,
+                marca: document.getElementById('map-marca').value,
+            };
+
+            if (!mapeoColumnas.codigo || !mapeoColumnas.stock || !mapeoColumnas.linea) {
+                alert('Por favor, asigne como mínimo las columnas para "Codigo Mercadería", "Stock" y "Linea".');
+                return;
+            }
+
+            const file = elementos.archivoInput.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                baseDeDatos = jsonData.map((row, index) => ({
+                    idOriginal: index, codigo: String(row[mapeoColumnas.codigo] || 'N/A'),
+                    barcode: String(row[mapeoColumnas.barcode] || ''), descripcion: String(row[mapeoColumnas.descripcion] || ''),
+                    stock: Number(row[mapeoColumnas.stock]) || 0, linea: String(row[mapeoColumnas.linea] || 'N/A'),
+                    categoria: String(row[mapeoColumnas.categoria] || ''), marca: String(row[mapeoColumnas.marca] || ''),
+                }));
+                
+                const lineas = [...new Set(baseDeDatos.map(item => item.linea))].sort();
+                inventarioPorLinea = {};
+                lineas.forEach(linea => {
+                    inventarioPorLinea[linea] = baseDeDatos
+                        .filter(p => p.linea === linea)
+                        .map(p => ({ ...p, id: `inv-${p.idOriginal}`, conteoFisico: 0, historial: [] }));
+                });
+
+                elementos.lineaSelect.innerHTML = '<option value="">Seleccione una Linea...</option>';
+                elementos.lineaSelect.innerHTML += `<option value="${VALOR_TODAS_LAS_LINEAS}">Todas las lineas</option>`;
+                lineas.forEach(l => {
+                    const option = document.createElement('option'); option.value = l; option.textContent = l; elementos.lineaSelect.appendChild(option);
+                });
+
+                elementos.lineaSelect.disabled = false;
+                elementos.filtroBusqueda.disabled = false;
+                elementos.btnToggleAgregar.disabled = false;
+                elementos.inputAgregarProducto.disabled = false;
+                elementos.modalMapeo.style.display = 'none';
+                
+                alert(`¡Base de datos cargada! Se encontraron ${formatearNumero(baseDeDatos.length)} productos en ${lineas.length} lineas.`);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+    // ---------------------------------------------------------------------------------
+    // --- 5. LÓGICA DE VISUALIZACIÓN Y FILTRADO ---
+    // ---------------------------------------------------------------------------------
+
+        function manejarCambioDeLinea(e) {
+            lineaActual = e.target.value;
+            categoriaActual = ''; marcaActual = '';
+            
+            if (lineaActual === VALOR_TODAS_LAS_LINEAS) {
+                productosInventario = Object.values(inventarioPorLinea).flat();
+            } else if (lineaActual) {
+                productosInventario = inventarioPorLinea[lineaActual];
+            } else {
+                productosInventario = [];
+            }
+            
+            popularFiltroCategorias();
+            popularFiltroMarcas(); 
+            renderizarTabla();
+        }
+
+        function manejarCambioDeCategoria(e) {
+            categoriaActual = e.target.value;
+            marcaActual = ''; 
+            popularFiltroMarcas();
+            renderizarTabla();
+        }
+
+        function popularFiltroCategorias() {
+            elementos.categoriaSelect.innerHTML = '<option value="">Todas las Categorias</option>';
+            if (!lineaActual) { elementos.categoriaSelect.disabled = true; return; }
+            
+            const productosParaFiltrar = (lineaActual === VALOR_TODAS_LAS_LINEAS) ? baseDeDatos : baseDeDatos.filter(p => p.linea === lineaActual);
+            const categorias = [...new Set(productosParaFiltrar.map(p => p.categoria))].sort();
+            categorias.forEach(c => {
+                const option = document.createElement('option'); option.value = c; option.textContent = c || 'Sin Categoria';
+                elementos.categoriaSelect.appendChild(option);
+            });
+            elementos.categoriaSelect.disabled = false;
+        }
+
+        function popularFiltroMarcas() {
+            elementos.marcaSelect.innerHTML = '<option value="">Todas las Marcas</option>';
+            if (!lineaActual) { elementos.marcaSelect.disabled = true; return; }
+
+            let productosParaFiltrar = (lineaActual === VALOR_TODAS_LAS_LINEAS) ? baseDeDatos : baseDeDatos.filter(p => p.linea === lineaActual);
+            if (categoriaActual) {
+                productosParaFiltrar = productosParaFiltrar.filter(p => p.categoria === categoriaActual);
+            }
+
+            const marcas = [...new Set(productosParaFiltrar.map(p => p.marca))].sort();
+            marcas.forEach(m => {
+                const option = document.createElement('option'); option.value = m; option.textContent = m || 'Sin Marca';
+                elementos.marcaSelect.appendChild(option);
+            });
+            elementos.marcaSelect.disabled = false;
+        }
+
+        /**
+         * NUEVA FUNCIÓN CENTRALIZADA PARA OBTENER LOS PRODUCTOS FILTRADOS
+         */
+        function obtenerProductosFiltrados() {
+            const filtroTexto = elementos.filtroBusqueda.value.toLowerCase();
+            return productosInventario.filter(p => {
+                const coincideCategoria = !categoriaActual || p.categoria === categoriaActual;
+                const coincideMarca = !marcaActual || p.marca === marcaActual;
+                const coincideTexto = p.codigo.toLowerCase().includes(filtroTexto) || p.barcode.toLowerCase().includes(filtroTexto) || p.descripcion.toLowerCase().includes(filtroTexto);
+                return coincideCategoria && coincideMarca && coincideTexto;
+            });
+        }
+
+        function renderizarTabla() {
+            elementos.tablaInventarioBody.innerHTML = '';
+            
+            const productosFiltrados = obtenerProductosFiltrados(); // Usamos la nueva funcion
+
+            productosFiltrados.forEach(producto => {
+                const fila = document.createElement('tr');
+                fila.className = 'fila-producto'; fila.id = `producto-${producto.id}`; fila.style.cursor = 'pointer';
+                fila.addEventListener('dblclick', () => toggleHistorial(producto.id));
+                fila.innerHTML = `
+                    <td><input type="checkbox" class="checkbox-producto" data-id="${producto.id}" onclick="event.stopPropagation(); actualizarEstadoBotonEliminar();"></td>
+                    <td>${producto.codigo}</td><td>${producto.barcode}</td><td>${producto.descripcion}</td>
+                    <td>${formatearNumero(producto.stock)}</td>
+                    <td>
+                        <div class="acciones-tabla">
+                            <input type="number" id="conteo-${producto.id}" onkeydown="manejarEnter(event, '${producto.id}')" onclick="event.stopPropagation();" placeholder="Ej: 1000 o -50" style="width: 100px;">
+                            <button onclick="event.stopPropagation(); registrarEnHistorial('${producto.id}');">Ajustar</button>
+                        </div>
+                    </td>
+                    <td id="total-${producto.id}" style="font-weight: bold;"></td>
+                    <td id="diferencia-${producto.id}" style="font-weight: bold; text-align: center;"></td>`;
+                
+                const filaHistorial = document.createElement('tr');
+                filaHistorial.id = `historial-${producto.id}`; filaHistorial.className = 'fila-historial';
+                filaHistorial.innerHTML = `<td colspan="8" class="celda-historial" id="celda-historial-${producto.id}"></td>`;
+                
+                elementos.tablaInventarioBody.appendChild(fila);
+                elementos.tablaInventarioBody.appendChild(filaHistorial);
+                actualizarVisuales(producto.id);
+            });
+            actualizarEstadoBotonEliminar();
+        }
+
+    // ---------------------------------------------------------------------------------
+    // --- 6. LÓGICA DE INTERACCIÓN CON LA TABLA ---
+    // ---------------------------------------------------------------------------------
+
+        function manejarEnter(event, productoId) { if (event.key === 'Enter') { event.preventDefault(); registrarEnHistorial(productoId); } }
+
+        function registrarEnHistorial(productoId) {
+            const productoEnVista = productosInventario.find(p => p.id === productoId);
+            if (!productoEnVista) return;
+
+            const inputConteo = document.getElementById(`conteo-${productoEnVista.id}`);
+            if (!inputConteo) return;
+            const valorARegistrar = parseInt(inputConteo.value);
+            if (isNaN(valorARegistrar)) { alert('Por favor, ingrese un numero valido.'); return; }
+
+            const ahora = new Date();
+            const timestamp = ahora.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            productoEnVista.historial.push({ cantidad: valorARegistrar, hora: timestamp });
+            productoEnVista.conteoFisico = productoEnVista.historial.reduce((acc, curr) => acc + curr.cantidad, 0);
+            
+            const productoMaestro = inventarioPorLinea[productoEnVista.linea].find(p => p.id === productoId);
+            if (productoMaestro) {
+                productoMaestro.historial = productoEnVista.historial;
+                productoMaestro.conteoFisico = productoEnVista.conteoFisico;
+            }
+
+            actualizarVisuales(productoEnVista.id);
+            inputConteo.value = '';
+            const filaHistorial = document.getElementById(`historial-${productoEnVista.id}`);
+            if (filaHistorial && filaHistorial.style.display !== 'none') { renderizarHistorial(productoEnVista.id); }
+        }
+
+        function toggleHistorial(productoId) {
+            const filaProducto = document.getElementById(`producto-${productoId}`);
+            const filaHistorial = document.getElementById(`historial-${productoId}`);
+            if (!filaHistorial || !filaProducto) return;
+            const estaVisible = filaHistorial.style.display !== 'none';
+            filaHistorial.style.display = estaVisible ? 'none' : 'table-row';
+            filaProducto.classList.toggle('historial-abierto', !estaVisible);
+            if (!estaVisible) { renderizarHistorial(productoId); }
+        }
+
+        function renderizarHistorial(productoId) {
+            const producto = productosInventario.find(p => p.id === productoId);
+            const celdaHistorial = document.getElementById(`celda-historial-${productoId}`);
+            if (!producto || !celdaHistorial) return;
+            if (producto.historial.length === 0) {
+                celdaHistorial.innerHTML = '<em>No hay ajustes registrados.</em>'; return;
+            }
+            let htmlHistorial = `<strong>Historial de Ajustes (Total: ${formatearNumero(producto.conteoFisico)})</strong><ul>`;
+            producto.historial.forEach(registro => {
+                htmlHistorial += `<li>Cantidad: <b>${registro.cantidad > 0 ? '+' : ''}${formatearNumero(registro.cantidad)}</b></li>`;
+            });
+            htmlHistorial += '</ul>';
+            celdaHistorial.innerHTML = htmlHistorial;
+        }
+
+        function actualizarVisuales(productoId) {
+            const producto = productosInventario.find(p => p.id === productoId);
+            if (!producto) return;
+            const celdaTotal = document.getElementById(`total-${producto.id}`);
+            const celdaDiferencia = document.getElementById(`diferencia-${producto.id}`);
+            if (!celdaTotal || !celdaDiferencia) return;
+            const conteoTotal = producto.conteoFisico;
+            const diferencia = conteoTotal - producto.stock;
+            celdaTotal.textContent = formatearNumero(conteoTotal);
+            celdaDiferencia.textContent = (diferencia >= 0 ? '+' : '') + formatearNumero(diferencia);
+            celdaDiferencia.style.color = diferencia >= 0 ? 'var(--color-exito)' : 'var(--color-peligro)';
+        }
+
+        function eliminarSeleccionados() {
+            const checkboxes = elementos.tablaInventarioBody.querySelectorAll('.checkbox-producto:checked');
+            if (checkboxes.length === 0) return;
+            if (!confirm(`¿Estás seguro de que quieres eliminar ${checkboxes.length} productos de la lista de conteo?`)) return;
+            
+            const idsAEliminar = new Set(Array.from(checkboxes).map(cb => cb.dataset.id));
+            productosInventario = productosInventario.filter(p => !idsAEliminar.has(p.id));
+
+            for (const linea in inventarioPorLinea) {
+                inventarioPorLinea[linea] = inventarioPorLinea[linea].filter(p => !idsAEliminar.has(p.id));
+            }
+            renderizarTabla();
+        }
+
+        function mostrarSugerencias() {
+            const texto = elementos.inputAgregarProducto.value.trim().toLowerCase();
+            elementos.sugerencias.innerHTML = '';
+            if (texto.length < 2) { elementos.sugerencias.style.display = 'none'; return; }
+            const idsEnInventario = new Set(Object.values(inventarioPorLinea).flat().map(p => p.idOriginal));
+            const sugerenciasFiltradas = baseDeDatos
+                .filter(p => !idsEnInventario.has(p.idOriginal) && (p.codigo.toLowerCase().includes(texto) || p.barcode.toLowerCase().includes(texto) || p.descripcion.toLowerCase().includes(texto)))
+                .slice(0, 10);
+            if (sugerenciasFiltradas.length > 0) {
+                sugerenciasFiltradas.forEach(p => {
+                    const div = document.createElement('div');
+                    div.textContent = `${p.codigo} - ${p.descripcion} (Linea: ${p.linea})`;
+                    div.dataset.id = p.idOriginal;
+                    div.addEventListener('click', () => agregarProductoPorSugerencia(p.idOriginal));
+                    elementos.sugerencias.appendChild(div);
+                });
+                elementos.sugerencias.style.display = 'block';
+            } else { elementos.sugerencias.style.display = 'none'; }
+        }
+
+        function agregarProductoPorSugerencia(productoIdOriginal) {
+            const productoEnDB = baseDeDatos.find(p => p.idOriginal === productoIdOriginal);
+            if (!productoEnDB) { alert('No se encontró el producto.'); return; }
+            const nuevoProducto = { ...productoEnDB, id: `inv-${productoEnDB.idOriginal}`, conteoFisico: 0, historial: [] };
+            if (inventarioPorLinea[nuevoProducto.linea]) {
+                inventarioPorLinea[nuevoProducto.linea].unshift(nuevoProducto);
+            } else {
+                inventarioPorLinea[nuevoProducto.linea] = [nuevoProducto];
+            }
+            if (lineaActual === VALOR_TODAS_LAS_LINEAS || lineaActual === nuevoProducto.linea) {
+                productosInventario.unshift(nuevoProducto); renderizarTabla();
+            }
+            elementos.inputAgregarProducto.value = ''; elementos.sugerencias.style.display = 'none';
+            alert(`Producto "${nuevoProducto.descripcion}" agregado con éxito a la linea "${nuevoProducto.linea}".`);
+        }
+
+    // ---------------------------------------------------------------------------------
+    // --- 7. LÓGICA DE EXPORTACIÓN Y FINALIZACIÓN ---
+    // ---------------------------------------------------------------------------------
+
+        function exportarAExcel() {
+            try {
+                const productosAExportar = obtenerProductosFiltrados();
+                if (productosAExportar.length === 0) { alert('No hay productos en la vista actual para exportar.'); return; }
+                
+                // Hoja 1: Resumen del inventario
+                const datosParaHojaResumen = productosAExportar.map(p => ({
+                    'Linea': p.linea, 'Categoria': p.categoria, 'Marca': p.marca,
+                    'Codigo Mercaderia': p.codigo, 'Codigo Barras': p.barcode, 'Descripcion': p.descripcion,
+                    'Stock Sistema': p.stock, 'Conteo Total': p.conteoFisico, 'Diferencia': p.conteoFisico - p.stock
+                }));
+                const worksheetResumen = XLSX.utils.json_to_sheet(datosParaHojaResumen);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheetResumen, "Inventario Filtrado");
+
+                // Hoja 2: Historial de ajustes
+                const datosHistorial = [];
+                productosAExportar.forEach(p => {
+                    if (p.historial && p.historial.length > 0) {
+                        p.historial.forEach(registro => {
+                            datosHistorial.push({
+                                'Codigo Mercaderia': p.codigo,
+                                'Descripcion': p.descripcion,
+                                'Ajuste Realizado': registro.cantidad,
+                                'Hora del Ajuste': registro.hora
+                            });
+                        });
+                    }
+                });
+
+                if (datosHistorial.length > 0) {
+                    const worksheetHistorial = XLSX.utils.json_to_sheet(datosHistorial);
+                    XLSX.utils.book_append_sheet(workbook, worksheetHistorial, "Historial de Ajustes");
+                }
+                
+                XLSX.writeFile(workbook, `Reporte_Inventario_KCC.xlsx`);
+
+            } catch (error) { console.error("Error al exportar a Excel:", error); alert("Ocurrió un error al generar el archivo Excel. Detalle: " + error.message); }
+        }
+
+        function exportarAPDF() {
+            try {
+                const productosAExportar = obtenerProductosFiltrados();
+                if (productosAExportar.length === 0) { alert('No hay productos en la vista actual para exportar.'); return; }
+                
+                const { jsPDF } = window.jspdf;
+                const fechaString = elementos.fechaInput.value;
+                const [year, month, day] = fechaString.split('-');
+                const fechaFormateada = `${day}/${month}/${year}`;
+                const docInventario = new jsPDF({ orientation: 'landscape' });
+
+                // Página 1: Resumen del inventario
+                docInventario.setFontSize(18);
+                docInventario.text("Reporte de Inventario KCC - Resumen", 14, 22);
+                docInventario.setFontSize(11);
+                const lineaTexto = (elementos.lineaSelect.options[elementos.lineaSelect.selectedIndex] || {}).text || 'Ninguna';
+                docInventario.text(`Linea: ${lineaTexto}`, 14, 32);
+                docInventario.text(`Categoria: ${categoriaActual || 'Todas'}`, 90, 32);
+                docInventario.text(`Marca: ${marcaActual || 'Todas'}`, 160, 32);
+                docInventario.text(`Fecha: ${fechaFormateada}`, 240, 32);
+
+                const headResumen = [['Linea', 'Cod. Prod.', 'Cod. Barras', 'Descripcion', 'Stock Sis.', 'Conteo', 'Diferencia']];
+                const bodyResumen = productosAExportar.map(p => {
+                    const diferencia = p.conteoFisico - p.stock;
+                    return [ p.linea, p.codigo, p.barcode, p.descripcion, formatearNumero(p.stock), formatearNumero(p.conteoFisico), (diferencia >= 0 ? '+' : '') + formatearNumero(diferencia) ];
+                });
+                docInventario.autoTable({ head: headResumen, body: bodyResumen, startY: 40, theme: 'grid' });
+                const finalY = docInventario.autoTable.previous.finalY;
+                docInventario.setFontSize(10);
+                docInventario.text(`Responsable: ${elementos.responsableInput.value}`, 14, finalY + 20);
+                docInventario.text('_________________________', 14, finalY + 21);
+                docInventario.text(`Auditor: ${elementos.auditorInput.value}`, 150, finalY + 20);
+                docInventario.text('_________________________', 150, finalY + 21);
+                
+                // ***** LÓGICA MODIFICADA PARA EL HISTORIAL COMPACTO EN PDF *****
+                const datosHistorialCompacto = [];
+                productosAExportar.forEach(p => {
+                    if (p.historial && p.historial.length > 0) {
+                        // Se unen todos los ajustes en una sola cadena de texto
+                        const resumenAjustes = p.historial.map(reg => (reg.cantidad > 0 ? '+' : '') + formatearNumero(reg.cantidad)).join(', ');
+                        datosHistorialCompacto.push([
+                            p.codigo,
+                            p.barcode,
+                            p.descripcion,
+                            resumenAjustes
+                        ]);
+                    }
+                });
+
+                if (datosHistorialCompacto.length > 0) {
+                    docInventario.addPage();
+                    docInventario.setFontSize(18);
+                    docInventario.text("Resumen de Ajustes por Producto", 14, 22);
+                    const headHistorial = [['Cod. Prod.', 'Cod. Barras', 'Descripcion', 'Ajustes Realizados (Cantidades)']];
+                    docInventario.autoTable({ 
+                        head: headHistorial, 
+                        body: datosHistorialCompacto, 
+                        startY: 30, 
+                        theme: 'grid',
+                        columnStyles: {
+                            3: { cellWidth: 'auto' } // Permite que la columna de ajustes se expanda
+                        }
+                    });
+                }
+                // ***** FIN DE LA LÓGICA MODIFICADA *****
+
+                docInventario.save(`Inventario_KCC.pdf`);
+
+            } catch (error) { console.error("Error al exportar a PDF:", error); alert("Ocurrio un error al generar el archivo PDF. Detalle: " + error.message); }
+        }
+
+        function reiniciarSistema() {
+            if (!confirm('¿Estas seguro de que quieres reiniciar? Se perderan todos los datos y conteos no guardados.')) { return; }
+            baseDeDatos = []; productosInventario = []; inventarioPorLinea = {}; mapeoColumnas = {};
+            elementos.tablaInventarioBody.innerHTML = '';
+            elementos.lineaSelect.innerHTML = '<option>Cargue un archivo</option>'; elementos.lineaSelect.disabled = true;
+            elementos.categoriaSelect.innerHTML = '<option>Seleccione linea</option>'; elementos.categoriaSelect.disabled = true;
+            elementos.marcaSelect.innerHTML = '<option>Seleccione categoria</option>'; elementos.marcaSelect.disabled = true;
+            elementos.archivoInput.value = ''; elementos.nombreArchivoSpan.textContent = '';
+            elementos.responsableInput.value = ''; elementos.filtroBusqueda.value = '';
+            elementos.filtroBusqueda.disabled = true; elementos.inputAgregarProducto.value = '';
+            elementos.inputAgregarProducto.disabled = true; elementos.sugerencias.innerHTML = '';
+            elementos.sugerencias.style.display = 'none'; elementos.seleccionarTodos.checked = false;
+            actualizarEstadoBotonEliminar();
+            lineaActual = ''; categoriaActual = ''; marcaActual = '';
+            document.getElementById('panel-agregar-container').style.display = 'none';
+            elementos.btnToggleAgregar.disabled = true; elementos.modalFinalizar.style.display = 'none';
+        }
+
+    // ---------------------------------------------------------------------------------
+    // --- 8. FUNCIONES AUXILIARES ---
+    // ---------------------------------------------------------------------------------
+
+        function formatearNumero(num) { return new Intl.NumberFormat('es-PY').format(num); }
+        function actualizarEstadoBotonEliminar() {
+            const checkboxes = elementos.tablaInventarioBody.querySelectorAll('.checkbox-producto:checked');
+            const btn = elementos.btnEliminarSeleccionados;
+            if (checkboxes.length > 0) { btn.style.display = 'inline-block'; btn.textContent = `Eliminar (${checkboxes.length})`; } 
+            else { btn.style.display = 'none'; }
+        }
+    // ================================================================================= //
+    // ========= FIN DEL CÓDIGO JAVASCRIPT ========= //
+    // ================================================================================= //
+    </script>
+</body>
+</html>

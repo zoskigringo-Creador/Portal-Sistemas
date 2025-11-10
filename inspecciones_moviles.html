@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspeccion de Herramientas de Moviles</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Libraries for functionality -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Prevents pull-to-refresh on mobile */
+            overscroll-behavior-y: contain;
+        }
+        /* Custom styles for toggle switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #4A90E2;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #4A90E2;
+        }
+        .interactive-btn {
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+        }
+        .interactive-btn:active {
+            transform: scale(0.95);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="fixed top-5 right-5 bg-green-600 text-white py-3 px-5 rounded-lg shadow-xl hidden transition-transform transform translate-x-full" style="z-index: 100;">
+        <p id="toast-message"></p>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-backdrop" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 z-40"></div>
+    
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-modal" class="hidden fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center w-full max-w-sm">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">¿Estas seguro?</h2>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Esta accion reiniciara los datos de inventario de todos los moviles a su estado original.</p>
+            <div class="flex justify-center gap-4">
+                <button id="cancel-reset" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg interactive-btn">Cancelar</button>
+                <button id="confirm-reset" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg interactive-btn">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center w-full max-w-sm transform transition-all duration-500 scale-95 opacity-0" id="welcome-box">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Bienvenido</h1>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Sistema de Inspeccion de Moviles</p>
+            <input type="text" id="inspector-name-input" placeholder="Ingresa tu nombre completo" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+            <button id="start-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg interactive-btn">
+                Comenzar Inspeccion
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app-screen" class="hidden container mx-auto p-4 md:p-8">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Inspeccion de Herramientas</h1>
+                <p class="text-gray-500 dark:text-gray-400" id="welcome-message"></p>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-end gap-4 w-full md:w-auto">
+                 <button id="reset-button" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-lg interactive-btn flex items-center justify-center gap-2">
+                    Reiniciar Sistema
+                 </button>
+                 <button id="export-excel-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg interactive-btn flex items-center justify-center gap-2">
+                    Exportar Todo a Excel
+                 </button>
+                 <button id="export-pdf-all" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg interactive-btn flex items-center justify-center gap-2">
+                    Exportar Todo a PDF
+                 </button>
+            </div>
+        </header>
+
+        <main id="inspection-form-container" class="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-lg">
+            <div class="flex justify-between items-center mb-2">
+                <label for="truck-selector" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Seleccionar Movil para Editar:</label>
+            </div>
+            <select id="truck-selector" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-6">
+                <option value="">-- Elige un camion --</option>
+            </select>
+
+            <!-- Inspection Details Form -->
+            <div id="form-details" class="hidden">
+                <!-- Truck Info -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 border-b dark:border-gray-700 pb-6">
+                    <div>
+                        <h3 class="font-semibold text-lg">Movil: <span id="info-movil" class="font-normal text-blue-500"></span></h3>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-lg">Chapa: <span id="info-chapa" class="font-normal"></span></h3>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-lg">Marca / Modelo: <span id="info-marca-modelo" class="font-normal"></span></h3>
+                    </div>
+                     <div class="lg:col-span-3">
+                        <label for="chofer-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nombre del Chofer:</label>
+                        <input type="text" id="chofer-name" placeholder="Ingresar nombre completo del chofer" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                
+                <!-- Checklist -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-yellow-50 dark:bg-yellow-700/30 p-4 rounded-lg flex items-center justify-between col-span-1 md:col-span-2 lg:col-span-3 border-l-4 border-yellow-400">
+                        <span class="font-bold text-yellow-800 dark:text-yellow-300">El camion se encuentra en el taller?</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="en-taller" id="en-taller" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="en-taller" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                        <label for="extintor-venc" class="block text-sm font-medium mb-2">Vencimiento Extintor</label>
+                        <input type="date" id="extintor-venc" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                        <label for="extintor-kg" class="block text-sm font-medium mb-2">KG Extintor</label>
+                        <input type="text" id="extintor-kg" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg flex items-center justify-between">
+                        <span class="font-medium">Llave Rueda</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="llave-rueda" id="llave-rueda" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="llave-rueda" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg flex items-center justify-between">
+                        <span class="font-medium">Gato</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="gato" id="gato" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="gato" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg flex items-center justify-between">
+                        <span class="font-medium">Baliza</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="baliza" id="baliza" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="baliza" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg flex items-center justify-between">
+                        <span class="font-medium">Auxilio</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="auxilio" id="auxilio" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="auxilio" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <label for="observaciones" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Observaciones</label>
+                    <textarea id="observaciones" rows="4" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus-ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button id="save-changes" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg interactive-btn flex items-center justify-center gap-2">
+                        Guardar y Cerrar
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- DATA ---
+        // This is the master list of trucks. It's used to populate the system and to reset it.
+        const initialTruckData = [
+            { movil: "C14", chapa: "APZ 890", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C15", chapa: "AGS 987", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C16", chapa: "BAT 076", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C17", chapa: "BDE 325", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C18", chapa: "BDT 178", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C19", chapa: "BFL 526", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C20", chapa: "BHR 359", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C26", chapa: "BUG 580", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C27", chapa: "BUS 167", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C28", chapa: "BVL 207", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C29", chapa: "BZL 488", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C30", chapa: "HBJ 610", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C31", chapa: "HBR 242", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C32", chapa: "HCK 834", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C33", chapa: "HDL 723", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C34", chapa: "HED 520", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C35", chapa: "HFX 996", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C36", chapa: "AAKK 764", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+            { movil: "C37", chapa: "AACA 528", marca: "ISUZU", modelo: "NQR", chofer: "", extintorVenc: "", kgExtintor: "", llaveRueda: true, gato: true, baliza: true, auxilio: true, observaciones: "", enTaller: false, saved: false },
+        ];
+        // This is the working copy of the data that will be modified by the user.
+        let truckData = [];
+
+        // --- ELEMENTS ---
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const welcomeBox = document.getElementById('welcome-box');
+        const startButton = document.getElementById('start-button');
+        const appScreen = document.getElementById('app-screen');
+        const truckSelector = document.getElementById('truck-selector');
+        const formDetails = document.getElementById('form-details');
+        const inspectorNameInput = document.getElementById('inspector-name-input');
+        const welcomeMessage = document.getElementById('welcome-message');
+        
+        // Modal elements
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const resetButton = document.getElementById('reset-button');
+        const resetModal = document.getElementById('reset-modal');
+        const cancelReset = document.getElementById('cancel-reset');
+        const confirmReset = document.getElementById('confirm-reset');
+        const saveChangesButton = document.getElementById('save-changes');
+
+        // --- FUNCTIONS ---
+        
+        function saveToLocalStorage() {
+            localStorage.setItem('truckInspectionData', JSON.stringify(truckData));
+            const inspectorName = inspectorNameInput.value.trim();
+            if (inspectorName) {
+                localStorage.setItem('inspectorName', inspectorName);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            const storedData = localStorage.getItem('truckInspectionData');
+            if (storedData) {
+                truckData = JSON.parse(storedData);
+            } else {
+                truckData = JSON.parse(JSON.stringify(initialTruckData));
+            }
+            const storedName = localStorage.getItem('inspectorName');
+            if (storedName) {
+                inspectorNameInput.value = storedName;
+            }
+        }
+
+        function showToast(message, isSuccess = false) {
+            const toast = document.getElementById('toast-notification');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.classList.remove('bg-red-600', 'bg-green-600');
+            toast.classList.add(isSuccess ? 'bg-green-600' : 'bg-red-600');
+            toast.classList.remove('hidden', 'translate-x-full');
+            toast.classList.add('translate-x-0');
+            setTimeout(() => {
+                toast.classList.remove('translate-x-0');
+                toast.classList.add('translate-x-full');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        function updateTruckSelector() {
+            while (truckSelector.options.length > 1) {
+                truckSelector.remove(1);
+            }
+            truckData.forEach(truck => {
+                const option = document.createElement('option');
+                option.value = truck.movil;
+                option.textContent = `${truck.movil} - ${truck.chapa}`;
+                // Add the checkmark if the truck has been saved
+                if (truck.saved) {
+                    option.textContent += ' ?';
+                }
+                truckSelector.appendChild(option);
+            });
+        }
+
+        function populateForm(movil) {
+            const truck = truckData.find(t => t.movil === movil);
+            if (truck) {
+                document.getElementById('info-movil').textContent = truck.movil;
+                document.getElementById('info-chapa').textContent = truck.chapa;
+                document.getElementById('info-marca-modelo').textContent = `${truck.marca} ${truck.modelo}`;
+                document.getElementById('chofer-name').value = truck.chofer;
+                document.getElementById('extintor-venc').value = truck.extintorVenc;
+                document.getElementById('extintor-kg').value = truck.kgExtintor;
+                document.getElementById('llave-rueda').checked = truck.llaveRueda;
+                document.getElementById('gato').checked = truck.gato;
+                document.getElementById('baliza').checked = truck.baliza;
+                document.getElementById('auxilio').checked = truck.auxilio;
+                document.getElementById('observaciones').value = truck.observaciones;
+                document.getElementById('en-taller').checked = truck.enTaller;
+                formDetails.classList.remove('hidden');
+            } else {
+                formDetails.classList.add('hidden');
+            }
+        }
+
+        function updateTruckDataFromForm() {
+            const movil = truckSelector.value;
+            if (!movil) return;
+
+            const truckIndex = truckData.findIndex(t => t.movil === movil);
+            if (truckIndex > -1) {
+                truckData[truckIndex].chofer = document.getElementById('chofer-name').value;
+                truckData[truckIndex].extintorVenc = document.getElementById('extintor-venc').value;
+                truckData[truckIndex].kgExtintor = document.getElementById('extintor-kg').value;
+                truckData[truckIndex].llaveRueda = document.getElementById('llave-rueda').checked;
+                truckData[truckIndex].gato = document.getElementById('gato').checked;
+                truckData[truckIndex].baliza = document.getElementById('baliza').checked;
+                truckData[truckIndex].auxilio = document.getElementById('auxilio').checked;
+                truckData[truckIndex].observaciones = document.getElementById('observaciones').value;
+                truckData[truckIndex].enTaller = document.getElementById('en-taller').checked;
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        startButton.addEventListener('click', () => {
+            const inspectorName = inspectorNameInput.value.trim();
+            if (inspectorName === "") {
+                showToast("Por favor, ingresa tu nombre.");
+                return;
+            }
+            welcomeMessage.textContent = `Inspeccion realizada por: ${inspectorName}`;
+            welcomeScreen.classList.add('opacity-0', 'pointer-events-none');
+            // Save the inspector name to localStorage
+            localStorage.setItem('inspectorName', inspectorName);
+            setTimeout(() => {
+                welcomeScreen.classList.add('hidden');
+                appScreen.classList.remove('hidden');
+            }, 500);
+        });
+
+        truckSelector.addEventListener('change', (e) => populateForm(e.target.value));
+
+        formDetails.addEventListener('change', updateTruckDataFromForm);
+        formDetails.addEventListener('keyup', updateTruckDataFromForm);
+
+        saveChangesButton.addEventListener('click', () => {
+            const movil = truckSelector.value;
+            if (!movil) {
+                showToast("No hay movil seleccionado.", false);
+                return;
+            }
+            updateTruckDataFromForm();
+            // Mark the truck as saved
+            const truckIndex = truckData.findIndex(t => t.movil === movil);
+            if (truckIndex > -1) {
+                truckData[truckIndex].saved = true;
+            }
+            // Save the updated data to localStorage
+            saveToLocalStorage();
+            updateTruckSelector(); // Re-populate the dropdown to show the checkmark
+            showToast("Cambios guardados correctamente.", true);
+            formDetails.classList.add('hidden');
+            truckSelector.value = "";
+        });
+
+        // Reset functionality
+        resetButton.addEventListener('click', () => {
+            modalBackdrop.classList.remove('hidden');
+            resetModal.classList.remove('hidden');
+        });
+        cancelReset.addEventListener('click', () => {
+            modalBackdrop.classList.add('hidden');
+            resetModal.classList.add('hidden');
+        });
+        confirmReset.addEventListener('click', () => {
+            // Reset the data to the initial state and clear localStorage
+            truckData = JSON.parse(JSON.stringify(initialTruckData));
+            localStorage.removeItem('truckInspectionData');
+            localStorage.removeItem('inspectorName');
+            updateTruckSelector();
+            formDetails.classList.add('hidden');
+            truckSelector.value = "";
+            modalBackdrop.classList.add('hidden');
+            resetModal.classList.add('hidden');
+            showToast("Sistema reiniciado a valores originales.", true);
+        });
+
+        // --- EXPORT FUNCTIONS ---
+        document.getElementById('export-pdf-all').addEventListener('click', () => {
+            try {
+                if (truckData.length === 0) {
+                    showToast("No hay moviles para exportar.");
+                    return;
+                }
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const inspectorName = inspectorNameInput.value.trim() || 'No especificado';
+                
+                doc.setFontSize(18);
+                doc.text("Reporte General de Flota", 14, 22);
+                doc.setFontSize(11);
+                doc.text(`Fecha: ${new Date().toLocaleDateString('es-ES')}`, 14, 30);
+                doc.text(`Inspector: ${inspectorName}`, 14, 36);
+
+                const tableColumn = ["Movil", "Chapa", "Chofer", "Estado", "Observaciones"];
+                const tableRows = [];
+
+                truckData.forEach(truck => {
+                    let status = "Operativo";
+                    let issues = [];
+
+                    if (truck.enTaller) {
+                        status = "En Taller";
+                    } else {
+                        if (!truck.llaveRueda) issues.push("Falta Llave Rueda");
+                        if (!truck.gato) issues.push("Falta Gato");
+                        if (!truck.baliza) issues.push("Falta Baliza");
+                        if (!truck.auxilio) issues.push("Falta Auxilio");
+                    }
+                    
+                    let observations = issues.join(', ');
+                    if (truck.observaciones) {
+                        observations += (observations ? '; ' : '') + truck.observaciones;
+                    }
+
+                    const truckRow = [
+                        truck.movil,
+                        truck.chapa,
+                        truck.chofer || "Sin Asignar",
+                        status,
+                        observations || "OK"
+                    ];
+                    tableRows.push(truckRow);
+                });
+
+                doc.autoTable({
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: 50,
+                });
+                doc.save(`Reporte_Flota_${new Date().toISOString().slice(0, 10)}.pdf`);
+            } catch (error) {
+                console.error("Error al generar PDF:", error);
+                showToast("Ocurrio un error al exportar el PDF.");
+            }
+        });
+
+        document.getElementById('export-excel-all').addEventListener('click', () => {
+            if (truckData.length === 0) {
+                showToast("No hay moviles para exportar.");
+                return;
+            }
+            const dataToExport = truckData.map(truck => {
+                return {
+                    "Móvil": truck.movil,
+                    "Chapa": truck.chapa,
+                    "Marca": truck.marca,
+                    "Modelo": truck.modelo,
+                    "Chofer": truck.chofer,
+                    "En Taller": truck.enTaller ? 'SI' : 'NO',
+                    "Vencimiento Extintor": truck.extintorVenc,
+                    "KG Extintor": truck.kgExtintor,
+                    "Llave Rueda": truck.llaveRueda ? 'SI' : 'NO',
+                    "Gato": truck.gato ? 'SI' : 'NO',
+                    "Baliza": truck.baliza ? 'SI' : 'NO',
+                    "Auxilio": truck.auxilio ? 'SI' : 'NO',
+                    "Observaciones": truck.observaciones,
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Flota Completa");
+            XLSX.writeFile(workbook, `Reporte_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        });
+
+        // --- INITIALIZATION ---
+        // Load data from localStorage on startup
+        loadFromLocalStorage();
+        updateTruckSelector(); // Initial call to set up the dropdown
+
+        setTimeout(() => {
+            welcomeBox.classList.remove('scale-95', 'opacity-0');
+            welcomeBox.classList.add('scale-100', 'opacity-100');
+        }, 100);
+    </script>
+</body>
+</html>
