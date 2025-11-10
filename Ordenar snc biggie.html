@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>SNC BIGGIE</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: #fffafa;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      color: #b30000;
+      font-size: 28px;
+      border: 2px solid #b30000;
+      padding: 10px 20px;
+      border-radius: 10px;
+      background-color: #ffe5e5;
+    }
+    input[type=file] {
+      margin-top: 20px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    button:hover {
+      background-color: #cc0000;
+      transform: scale(1.05);
+    }
+    .footer {
+      margin-top: 60px;
+      font-size: 12px;
+      color: #666;
+    }
+    .datetime {
+      position: absolute;
+      top: 20px;
+      right: 40px;
+      font-size: 14px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="datetime" id="datetime"></div>
+  <h1>LIMPIAR SNC BIGGIE</h1>
+  <p>Subi tu archivo desordenado y descarga la version lista para usar.</p>
+  <input type="file" id="fileInput" accept=".xlsx" />
+  <br>
+  <button onclick="handleFile()">Procesar Archivo</button>
+
+  <div class="footer">
+    Hecho por Rodrigo Cabrera
+  </div>
+
+  <script>
+    function updateDateTime() {
+      const now = new Date();
+      const formatted = now.toLocaleString('es-ES');
+      document.getElementById('datetime').innerText = formatted;
+    }
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+
+    /**
+     * Función mejorada para convertir números.
+     * Maneja valores que ya son números y strings con comas (ej. "1,50")
+     * o puntos de miles (ej. "1.500,50").
+     */
+    function parseSpanishNumber(value) {
+      if (typeof value === 'number') {
+        return value; // Ya es un número
+      }
+      if (typeof value === 'string') {
+        // 1. Quita los puntos de miles (ej. "1.000" -> "1000")
+        // 2. Reemplaza la coma decimal por un punto (ej. "1,50" -> "1.50")
+        const cleanedValue = value.replace(/\./g, '').replace(/,/g, '.');
+        return parseFloat(cleanedValue);
+      }
+      return NaN; // No es un formato reconocible
+    }
+
+    function handleFile() {
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) {
+        showMessage('Por favor, seleccioná un archivo primero.');
+        return;
+      }
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
+
+        const output = [];
+
+        let sucursal = '', proveedor = '', factura = '', vencimiento = '', fecha = '', estado = '', caso = '';
+
+        for (let i = 0; i < raw.length; i++) {
+          const row = raw[i];
+
+          if (!row.length) continue;
+
+          if (row[0] && typeof row[0] === 'string') {
+            if (row[0].includes('Sucursal:')) sucursal = row[1];
+            if (row[0].includes('Proveedor:')) proveedor = row[1];
+            if (row[0].includes('Factura Asociada:')) factura = row[1];
+            if (row[0].includes('Caso Nro.:')) {
+              caso = row[1];
+              if (row.length > 3 && row[3]) {
+                fecha = row[3];
+              }
+            }
+            if (row[0].includes('Fecha Vencimiento:')) vencimiento = row[1];
+            if (row[0].includes('Fecha:')) fecha = row[1];
+          }
+
+          if (row[2] && typeof row[2] === 'string' && row[2].includes('Estado:')) estado = row[3];
+
+          
+          // --- INICIO DE LA CORRECCIÓN v2 ---
+          
+          // 1. Convertimos EAN a string y quitamos espacios
+          const ean = row[0] ? String(row[0]).trim() : '';
+          
+          // 2. Usamos la función parseSpanishNumber para convertir de forma segura
+          const cantidad = parseSpanishNumber(row[2]);
+          const precio = parseSpanishNumber(row[3]);
+          const total = parseSpanishNumber(row[4]);
+
+          // 3. Validaciones actualizadas
+          
+          // CORRECCIÓN EAN: Acepta entre 8 y 14 dígitos
+          const esEANValido = ean.match(/^\d{8,14}$/);
+          
+          // CORRECCIÓN NÚMEROS: Comprueba si el resultado es un número válido
+          const esCantidadValida = !isNaN(cantidad);
+          const esPrecioValido = !isNaN(precio);
+
+          // 4. Comprobamos las nuevas condiciones
+          if (esEANValido && esCantidadValida && esPrecioValido) {
+            
+            output.push({
+              'Sucursal': sucursal,
+              'Proveedor': proveedor,
+              'Factura': factura,
+              'Fecha Vencimiento': vencimiento,
+              'Caso': caso,
+              'Fecha': fecha,
+              'Estado': estado,
+              'EAN': ean,
+              'Descripción': row[1],
+              'Cantidad': cantidad, // Ya es un número limpio
+              'Precio Unitario': precio, // Ya es un número limpio
+              'Total': total // Ya es un número limpio
+            });
+          }
+          // --- FIN DE LA CORRECCIÓN ---
+        }
+
+        const newSheet = XLSX.utils.json_to_sheet(output);
+        const newBook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newBook, newSheet, 'Datos Ordenados');
+        XLSX.writeFile(newBook, 'Nota_de_Credito_Ordenada.xlsx');
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Función simple para mostrar mensajes en lugar de 'alert'
+    function showMessage(message) {
+        let msgBox = document.getElementById('message-box');
+        if (!msgBox) {
+            msgBox = document.createElement('div');
+            msgBox.id = 'message-box';
+            msgBox.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 10px 20px;
+                background-color: #ff4d4d;
+                color: white;
+                border-radius: 5px;
+                z-index: 1000;
+                font-size: 16px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            `;
+            document.body.appendChild(msgBox);
+        }
+        msgBox.textContent = message;
+        setTimeout(() => {
+            if (msgBox) {
+                msgBox.remove();
+            }
+        }, 3000);
+    }
+  </script>
+</body>
+</html>
