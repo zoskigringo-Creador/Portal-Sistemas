@@ -37,6 +37,21 @@
             color: white;
             font-weight: 600;
         }
+
+        /* --- (NUEVO) Animación de Saludo --- */
+        @keyframes wave {
+            0%, 60%, 100% { transform: rotate(0deg); }
+            10%, 30% { transform: rotate(14deg); }
+            20%, 40% { transform: rotate(-8deg); }
+            50% { transform: rotate(10deg); }
+        }
+        .wave-animation {
+            animation: wave 2.5s infinite;
+            transform-origin: 70% 70%;
+            display: inline-block;
+        }
+        /* --- Fin de la Animación --- */
+
     </style>
 </head>
 <body class="bg-gray-200" style="font-family: 'Inter', sans-serif;">
@@ -56,6 +71,10 @@
 
         <nav class="flex-grow overflow-y-auto">
             <ul>
+                <!-- (NUEVO) Botón de Menú Principal -->
+                <li><button id="home-btn" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none font-bold border-b border-gray-700 mb-2">Menú Principal</button></li>
+                
+                <!-- Links existentes -->
                 <li><button data-src="sistema_de_inventario.html" data-title="Inventario General" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Sistema de Inventario (General)</button></li>
                 <li><button data-src="inventario_kcc.html" data-title="Inventario KCC" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Inventario KCC</button></li>
                 <li><button data-src="inventario_tmk.html" data-title="Inventario TMK" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Inventario TMK</button></li>
@@ -64,6 +83,9 @@
                 <li><button data-src="carga_de_metros_cubicos.html" data-title="Carga de M3" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Carga de Metros Cúbicos</button></li>
                 <li><button data-src="ordenar_snc_biggie.html" data-title="SNC Biggie" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Ordenar SNC Biggie</button></li>
                 <li><button data-src="snc_pendientes.html" data-title="SNC Pendientes" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">SNC Pendientes</button></li>
+                <!-- (NUEVO) Agregado para el link faltante -->
+                <li><button data-src="calculadora_aguinaldo.html" data-title="Calculadora Aguinaldo" class="menu-item w-full text-left p-3 rounded-md hover:bg-gray-700 focus:outline-none">Calculadora Aguinaldo</button></li>
+
             </ul>
         </nav>
 
@@ -73,15 +95,31 @@
     </aside>
 
     <main class="h-screen"> 
-        <iframe id="content-frame" class="w-full h-full border-0" src=""></iframe>
+        
+        <!-- (NUEVO) Pantalla de Bienvenida -->
+        <div id="welcome-screen" class="flex flex-col items-center justify-center h-full bg-gray-200 p-8 text-center">
+            <div class="text-7xl mb-6">
+                <span class="wave-animation">👋</span>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">¡Bienvenido, Rodrigo!</h1>
+            <p class="text-xl text-gray-600">Selecciona una aplicación del menú para comenzar.</p>
+        </div>
+
+        <!-- (MODIFICADO) Iframe ahora está oculto por defecto -->
+        <iframe id="content-frame" class="w-full h-full border-0 hidden" src=""></iframe>
     </main>
 
     <script>
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         const contentFrame = document.getElementById('content-frame');
-        // const appTitle = document.getElementById('app-title'); // Ya no existe
         const menuItems = document.querySelectorAll('.menu-item');
+        
+        // --- (NUEVO) Elementos ---
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const homeBtn = document.getElementById('home-btn');
+        // --- Fin ---
+        
         let currentItem = null; // Para guardar el ítem activo
 
         // Función para abrir/cerrar el menú
@@ -90,9 +128,14 @@
             overlay.classList.toggle('hidden');
         }
 
-        // Función para cargar contenido
+        // (MODIFICADO) Función para cargar contenido
         function loadContent(src, title, buttonEl) {
             if (src) {
+                
+                // (NUEVO) Oculta la bienvenida y muestra el iframe
+                welcomeScreen.classList.add('hidden');
+                contentFrame.classList.remove('hidden');
+                
                 try {
                     contentFrame.src = decodeURIComponent(src);
                 } catch (e) {
@@ -100,33 +143,56 @@
                     contentFrame.src = src; // Intentar cargarlo de todos modos
                 }
                 
-                // Quitado: appTitle.textContent = title;
-
                 // Resalta el ítem activo
                 if (currentItem) {
                     currentItem.classList.remove('active'); // Quita la clase 'active'
                 }
-                buttonEl.classList.add('active'); // Añade la clase 'active'
-                currentItem = buttonEl;
+                
+                // (NUEVO) El botón "Menu Principal" no debe quedar activo
+                if (buttonEl !== homeBtn) {
+                    buttonEl.classList.add('active'); // Añade la clase 'active'
+                    currentItem = buttonEl;
+                } else {
+                    currentItem = null;
+                }
 
                 // Cierra el menú
                 toggleMenu();
             }
         }
+        
+        // (NUEVO) Función para volver al inicio
+        function goHome() {
+            welcomeScreen.classList.remove('hidden');
+            contentFrame.classList.add('hidden');
+            contentFrame.src = ""; // Limpia el iframe
+
+            // Quita la selección de cualquier ítem
+            if (currentItem) {
+                currentItem.classList.remove('active');
+            }
+            currentItem = null;
+            
+            toggleMenu();
+        }
 
         // Asignar evento a cada ítem del menú
         menuItems.forEach(item => {
             item.addEventListener('click', () => {
-                const src = item.getAttribute('data-src');
-                const title = item.getAttribute('data-title');
-                loadContent(src, title, item);
+                // (NUEVO) No recargar si es el botón de inicio
+                if (item.id === 'home-btn') {
+                    goHome();
+                } else {
+                    const src = item.getAttribute('data-src');
+                    const title = item.getAttribute('data-title');
+                    loadContent(src, title, item);
+                }
             });
         });
 
-        // Cargar el primer sistema por defecto
+        // (MODIFICADO) Ya no se carga nada al inicio
         document.addEventListener('DOMContentLoaded', () => {
-            // Ya no se hace nada al cargar, el iframe estará vacío
-            // hasta que el usuario haga clic.
+            // La pantalla de bienvenida se muestra por defecto
         });
     </script>
 </body>
